@@ -13,6 +13,11 @@ TRANSCRIPTS_DIR = os.getenv('OPENCLAW_SESSIONS', '/data/.openclaw/agents/main/se
 
 @app.route('/')
 def index():
+    # Basic debug logging to container logs (stdout)
+    print(f"DEBUG: Checking WORKSPACE_DIR: {WORKSPACE_DIR}")
+    print(f"DEBUG: Exists? {os.path.exists(WORKSPACE_DIR)}")
+    if os.path.exists(WORKSPACE_DIR):
+        print(f"DEBUG: Files: {os.listdir(WORKSPACE_DIR)[:5]}")
     return render_template('index.html')
 
 @app.route('/api/files')
