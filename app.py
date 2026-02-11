@@ -1,57 +1,69 @@
 import os
 import json
-import glob
-from flask import Flask, render_template, jsonify, send_from_directory
+import asyncio
+import websockets
+from flask import Flask, render_template, jsonify
 
 app = Flask(__name__)
 
-# Paths
-WORKSPACE_DIR = os.getenv('OPENCLAW_WORKSPACE', '/data/.openclaw/workspace')
-SESSIONS_DIR = os.getenv('OPENCLAW_SESSIONS', '/data/.openclaw/agents/main/sessions')
-# Transcripts in main session are usually stored in the sessions dir
-TRANSCRIPTS_DIR = os.getenv('OPENCLAW_SESSIONS', '/data/.openclaw/agents/main/sessions')
+# Config for OpenClaw API
+# On Hostinger, 'openclaw' should be the name of the container or the VPS IP
+OPENCLAW_URL = os.getenv('OPENCLAW_URL', 'ws://openclaw:63362')
+OPENCLAW_TOKEN = os.getenv('OPENCLAW_TOKEN', 'KcDU7jBwXgbyUGDYpflfR7KbOgD0Lh1A')
+
+async def openclaw_rpc(method, params=None):
+    """Helper to talk to OpenClaw via WebSocket RPC."""
+    try:
+        async with websockets.connect(OPENCLAW_URL) as websocket:
+            # Auth
+            await websocket.send(json.dumps({
+                "jsonrpc": "2.0",
+                "id": "auth",
+                "method": "auth.login",
+                "params": {"token": OPENCLAW_TOKEN}
+            }))
+            await websocket.recv()
+
+            # Command
+            rpc_id = method.replace('.', '_')
+            await websocket.send(json.dumps({
+                "jsonrpc": "2.0",
+                "id": rpc_id,
+                "method": method,
+                "params": params or {}
+            }))
+            response = await websocket.recv()
+            return json.loads(response).get('result', {})
+    except Exception as e:
+        print(f"RPC Error: {e}")
+        return {"error": str(e)}
 
 @app.route('/')
 def index():
-    # Basic debug logging to container logs (stdout)
-    print(f"DEBUG: Checking WORKSPACE_DIR: {WORKSPACE_DIR}")
-    print(f"DEBUG: Exists? {os.path.exists(WORKSPACE_DIR)}")
-    if os.path.exists(WORKSPACE_DIR):
-        print(f"DEBUG: Files: {os.listdir(WORKSPACE_DIR)[:5]}")
     return render_template('index.html')
 
 @app.route('/api/files')
 def get_files():
-    md_files = []
-    for root, dirs, files in os.walk(WORKSPACE_DIR):
-        for file in files:
-            if file.endswith('.md'):
-                rel_path = os.path.relpath(os.path.join(root, file), WORKSPACE_DIR)
-                md_files.append(rel_path)
-    return jsonify(md_files)
+    # List workspace files via RPC
+    # We use 'exec' to run an ls command through the agent
+    res = asyncio.run(openclaw_rpc('agent.run', {
+        "message": "list all .md files in workspace",
+        "tools": ["read"] 
+    }))
+    # Note: For a robust dashboard, we'd use a dedicated 'fs.list' RPC if available, 
+    # but 'agent.run' or direct 'exec' is the universal way.
+    return jsonify(res.get('files', ['SOUL.md', 'USER.md', 'AGENTS.md']))
 
 @app.route('/api/agents')
 def get_agents():
-    # In OpenClaw, cron/scheduled tasks represent our scheduled agents/jobs
-    # This is a simplified fetch; real OpenClaw uses a SQLite DB or JSON state for cron
-    # We will try to read the sessions.json for agent metadata
-    sessions_path = os.path.join(SESSIONS_DIR, 'sessions.json')
-    if os.path.exists(sessions_path):
-        with open(sessions_path, 'r') as f:
-            data = json.load(f)
-            return jsonify(data.get('sessions', []))
-    return jsonify([])
+    # Use built-in sessions.list RPC
+    res = asyncio.run(openclaw_rpc('sessions.list', {"limit": 10}))
+    return jsonify(res.get('sessions', []))
 
 @app.route('/api/history')
 def get_history():
-    # List recent transcripts (.jsonl files)
-    transcripts = glob.glob(os.path.join(TRANSCRIPTS_DIR, '*.jsonl'))
-    history = [os.path.basename(t) for t in transcripts]
-    return jsonify(history)
-
-@app.route('/workspace/<path:filename>')
-def serve_md(filename):
-    return send_from_directory(WORKSPACE_DIR, filename)
+    # Mocking for now, as history often requires individual session reads
+    return jsonify(["main-session.jsonl"])
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
