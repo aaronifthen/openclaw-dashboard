@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenClaw Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; padding-top: 20px; }
+        .card { margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .list-group-item { cursor: pointer; }
+        .list-group-item:hover { background-color: #e9ecef; }
+        .header-status { font-size: 0.9rem; color: #6c757d; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="h2 text-primary">OpenClaw Dashboard</h1>
+            <div class="header-status">Status: Connected</div>
+        </header>
+
+        <div class="row">
+            <!-- Markdown Files Section -->
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header bg-dark text-white">Workspace (.md files)</div>
+                    <ul class="list-group list-group-flush" id="file-list">
+                        <li class="list-group-item text-muted">Loading files...</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Agents & Schedule Section -->
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">Active Agents & Schedules</div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Model</th>
+                                        <th>Status</th>
+                                        <th>Updated</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="agent-list">
+                                    <tr><td colspan="4" class="text-center text-muted">Loading agents...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- History Section -->
+                <div class="card">
+                    <div class="card-header bg-secondary text-white">Request History (Transcripts)</div>
+                    <ul class="list-group list-group-flush" id="history-list">
+                        <li class="list-group-item text-muted">Loading history...</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function loadDashboard() {
+            // Load Files
+            try {
+                const filesRes = await fetch('/api/files');
+                const files = await filesRes.json();
+                document.getElementById('file-list').innerHTML = files.map(f => 
+                    `<li class="list-group-item" onclick="window.open('/workspace/${f}', '_blank')">📄 ${f}</li>`
+                ).join('') || '<li class="list-group-item">No files found</li>';
+            } catch(e) { console.error(e); }
+
+            // Load Agents
+            try {
+                const agentsRes = await fetch('/api/agents');
+                const agents = await agentsRes.json();
+                document.getElementById('agent-list').innerHTML = agents.map(a => `
+                    <tr>
+                        <td><strong>${a.displayName || a.key}</strong></td>
+                        <td><span class="badge bg-info text-dark">${a.model}</span></td>
+                        <td>${a.systemSent ? '🟢 Running' : '⚪️ Idle'}</td>
+                        <td>${new Date(a.updatedAt).toLocaleString()}</td>
+                    </tr>
+                `).join('') || '<tr><td colspan="4" class="text-center">No active agents</td></tr>';
+            } catch(e) { console.error(e); }
+
+            // Load History
+            try {
+                const historyRes = await fetch('/api/history');
+                const history = await historyRes.json();
+                document.getElementById('history-list').innerHTML = history.map(h => 
+                    `<li class="list-group-item small">🕒 ${h}</li>`
+                ).join('') || '<li class="list-group-item">No history found</li>';
+            } catch(e) { console.error(e); }
+        }
+
+        loadDashboard();
+    </script>
+</body>
+</html>
