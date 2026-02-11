@@ -6,9 +6,10 @@ from flask import Flask, render_template, jsonify, send_from_directory
 app = Flask(__name__)
 
 # Paths
-WORKSPACE_DIR = '/data/.openclaw/workspace'
-SESSIONS_DIR = '/data/.openclaw/agents/main/sessions'
-TRANSCRIPTS_DIR = '/data/.openclaw/transcripts'
+WORKSPACE_DIR = os.getenv('OPENCLAW_WORKSPACE', '/data/.openclaw/workspace')
+SESSIONS_DIR = os.getenv('OPENCLAW_SESSIONS', '/data/.openclaw/agents/main/sessions')
+# Transcripts in main session are usually stored in the sessions dir
+TRANSCRIPTS_DIR = os.getenv('OPENCLAW_SESSIONS', '/data/.openclaw/agents/main/sessions')
 
 @app.route('/')
 def index():

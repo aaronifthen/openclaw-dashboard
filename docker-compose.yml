@@ -4,5 +4,10 @@ services:
     ports:
       - "5000:5000"
     volumes:
-      - /data/.openclaw:/data/.openclaw:ro
+      # Map your host's OpenClaw data directory to the container
+      # On Hostinger, replace '/home/user/.openclaw' with the actual path
+      - ${OPENCLAW_DATA_PATH:-/data/.openclaw}:/data/.openclaw:ro
+    environment:
+      - OPENCLAW_WORKSPACE=/data/.openclaw/workspace
+      - OPENCLAW_SESSIONS=/data/.openclaw/agents/main/sessions
     restart: always
